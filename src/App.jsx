@@ -43,7 +43,6 @@ export default function App() {
     }
   }, []);
   useEffect(() => {
-    // Save only the added (non-default) tokens
     const defaultKeys = new Set([
       "DAK","CHOG","YAKI","CULT","GMONAD","aprMON","shMON","sMON"
     ]);
@@ -75,6 +74,14 @@ export default function App() {
     } else {
       alert("Please install MetaMask to connect your wallet.");
     }
+  };
+
+  // Disconnect wallet
+  const disconnectWallet = () => {
+    setWalletAddress("Not connected");
+    setBalances({ MON: 0, DAK: 0, CHOG: 0, YAKI: 0 });
+    setTotalTx(0);
+    setNftCount(0);
   };
 
   // Fetch balances
@@ -198,23 +205,6 @@ export default function App() {
       fetchBalances(walletAddress);
     }
   };
-
-  // Auto-refresh
-  useEffect(() => {
-    if (walletAddress && walletAddress !== "Not connected") {
-      fetchBalances(walletAddress);
-      fetchTotalTransactions(walletAddress);
-      fetchAllNFTs(walletAddress);
-
-      const interval = setInterval(() => {
-        fetchBalances(walletAddress);
-        fetchTotalTransactions(walletAddress);
-        fetchAllNFTs(walletAddress);
-      }, 20000);
-
-      return () => clearInterval(interval);
-    }
-  }, [walletAddress, TOKENS]);
 
   // ------- Styles -------
   const pageStyle = {
@@ -381,14 +371,22 @@ export default function App() {
 
         {/* Buttons */}
         <div style={buttonRow}>
-          <button onClick={connectWallet} style={buttonPrimary}>
-            Connect Wallet
-          </button>
+          {walletAddress === "Not connected" ? (
+            <button onClick={connectWallet} style={buttonPrimary}>
+              Connect Wallet
+            </button>
+          ) : (
+            <button onClick={disconnectWallet} style={buttonPrimary}>
+              Disconnect Wallet
+            </button>
+          )}
           <button
             onClick={() => {
-              fetchBalances(walletAddress);
-              fetchTotalTransactions(walletAddress);
-              fetchAllNFTs(walletAddress);
+              if (walletAddress !== "Not connected") {
+                fetchBalances(walletAddress);
+                fetchTotalTransactions(walletAddress);
+                fetchAllNFTs(walletAddress);
+              }
             }}
             style={buttonSecondary}
           >
