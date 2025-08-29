@@ -306,7 +306,7 @@ export default function App() {
 
         {/* === QUIZ SECTION === */}
         <div style={cardStyle}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Guess the Monad dApp</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>What is the Name of the dApp?</h2>
           {!gameActive ? (
             <button onClick={startGame} style={buttonPrimary}>Start Game</button>
           ) : (
