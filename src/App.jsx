@@ -12,8 +12,8 @@ const ERC20_ABI = [
   "function symbol() view returns (string)"
 ];
 
-// Backend API URL (updated to deployed server)
-const API_URL = "https://monad-leaderboard-server.vercel.app/api";
+// Backend API URL (update to your deployed server URL when ready)
+const API_URL = "http://localhost:3000/api";
 
 export default function App() {
   const [walletAddress, setWalletAddress] = useState("Not connected");
@@ -92,7 +92,7 @@ export default function App() {
 
   const fetchBalances = async (address) => {
     try {
-      const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL); // Reverted to old behavior
+      const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL); // Removed customNetwork
       const rawBalance = await provider.getBalance(address);
       const monBalance = parseFloat(ethers.formatEther(rawBalance));
 
