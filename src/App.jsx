@@ -13,7 +13,7 @@ const ERC20_ABI = [
 ];
 
 // Backend API URL (update to your deployed server URL when ready)
-const API_URL = "http://localhost:3000/api";
+const API_URL = "https://monad-leaderboard-server.vercel.app/api";
 
 export default function App() {
   const [walletAddress, setWalletAddress] = useState("Not connected");
