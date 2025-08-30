@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"; 
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import axios from "axios";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
@@ -12,7 +12,7 @@ const ERC20_ABI = [
   "function symbol() view returns (string)"
 ];
 
-// Backend API URL (update to your deployed server URL when ready)
+// Backend API URL
 const API_URL = "https://monad-leaderboard-server.vercel.app/api";
 
 export default function App() {
@@ -24,7 +24,7 @@ export default function App() {
   const [loadingNFTs, setLoadingNFTs] = useState(false);
   const [customTokenCA, setCustomTokenCA] = useState("");
   const [TOKENS, setTOKENS] = useState({
-    DAK: "0x0F0BDEbF0F83cD1EE3974779Bcb7315f9808c714",
+    DAK: "0x0F0BDEbF EstablishedF83cD1EE3974779Bcb7315f9808c714",
     CHOG: "0xE0590015A873bF326bd645c3E1266d4db41C4E6B",
     YAKI: "0xfe140e1dCe99Be9F4F15d657CD9b7BF622270C50",
     CULT: "0xAbF39775d23c5B6C0782f3e35B51288bdaf946e2",
@@ -33,7 +33,8 @@ export default function App() {
     shMON: "0x1b4Cb47622705F0F67b6B18bBD1cB1a91fc77d37",
     sMON: "0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5"
   });
-  const [leaderboard, setLeaderboard] = useState([]); // Store leaderboard data
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const ALCHEMY_API_URL = "https://monad-testnet.g.alchemy.com/v2/t8TcyfIGJYS3otYySM2t6";
 
@@ -92,7 +93,7 @@ export default function App() {
 
   const fetchBalances = async (address) => {
     try {
-      const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL); // Removed customNetwork
+      const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL);
       const rawBalance = await provider.getBalance(address);
       const monBalance = parseFloat(ethers.formatEther(rawBalance));
 
@@ -147,16 +148,16 @@ export default function App() {
     setLoadingNFTs(false);
   };
 
-  // Fetch leaderboard from backend with percentage calculation
+  // Fetch leaderboard from backend
   const fetchLeaderboard = async () => {
     try {
       const response = await axios.get(`${API_URL}/leaderboard`);
       const data = response.data;
-      const totalScore = data.reduce((sum, entry) => sum + entry.score, 0);
+      const maxScore = gameData.length;
       const leaderboardData = data.map(entry => ({
         wallet: entry.wallet,
         score: entry.score,
-        percentage: totalScore > 0 ? ((entry.score / totalScore) * 100).toFixed(2) + "%" : "0%"
+        percentage: maxScore > 0 ? ((entry.score / maxScore) * 100).toFixed(2) + "%" : "0%"
       }));
       setLeaderboard(leaderboardData.sort((a, b) => b.score - a.score));
     } catch (err) {
@@ -208,22 +209,60 @@ export default function App() {
         timestamp: Date.now()
       });
       alert("Score saved to leaderboard!");
-      fetchLeaderboard(); // Refresh leaderboard
+      fetchLeaderboard();
     } catch (err) {
       console.error("Failed to save score:", err);
       alert("Failed to save score to leaderboard. See console for details.");
     }
   };
 
-  const pageStyle = { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", background: "#130629", color: "#ffffff", padding: "24px" };
+  // Toggle dark mode
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
+  // Dynamic styles based on dark mode
+  const pageStyle = {
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    background: isDarkMode ? "#1a1a1a" : "#130629",
+    color: isDarkMode ? "#e0e0e0" : "#ffffff",
+    padding: "24px"
+  };
   const stackStyle = { width: "100%", maxWidth: 560, display: "flex", flexDirection: "column", alignItems: "center", gap: 24 };
-  const cardStyle = { background: "#ffffff", color: "#000000", borderRadius: 16, boxShadow: "0 10px 24px rgba(0,0,0,0.25)", padding: 24, width: "100%", textAlign: "center" };
+  const cardStyle = {
+    background: isDarkMode ? "#4B0082" : "#ffffff", // Deep purple in dark mode
+    color: isDarkMode ? "#e0e0e0" : "#000000",
+    borderRadius: 16,
+    boxShadow: isDarkMode ? "0 10px 24px rgba(0,0,0,0.4)" : "0 10px 24px rgba(0,0,0,0.25)",
+    padding: 24,
+    width: "100%",
+    textAlign: "center"
+  };
   const buttonPrimary = { background: "#7c3aed", color: "#ffffff", padding: "10px 16px", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600 };
   const buttonSecondary = { background: "#16a34a", color: "#ffffff", padding: "10px 16px", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600 };
   const buttonBreak = { background: "#ef4444", color: "#ffffff", padding: "10px 16px", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600 };
+  const buttonToggle = {
+    background: isDarkMode ? "#4b5563" : "#d1d5db",
+    color: isDarkMode ? "#ffffff" : "#000000",
+    padding: "10px 16px",
+    borderRadius: 12,
+    border: "none",
+    cursor: "pointer",
+    fontWeight: 600
+  };
   const buttonRow = { display: "flex", gap: 16, justifyContent: "center", width: "100%", marginTop: 16 };
   const inputStyle = { border: "1px solid #ccc", borderRadius: 8, padding: "8px 10px", width: "100%", marginBottom: 8 };
-  const chartCardStyle = { ...cardStyle, maxWidth: 560, display: "flex", flexDirection: "column", alignItems: "center" };
+  const chartCardStyle = {
+    ...cardStyle,
+    maxWidth: 560,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center"
+  };
 
   const [quizIndex, setQuizIndex] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -291,10 +330,13 @@ export default function App() {
           )}
           <button onClick={() => walletAddress !== "Not connected" && (fetchBalances(walletAddress), fetchTotalTransactions(walletAddress), fetchAllNFTs(walletAddress))} style={buttonSecondary}>Refresh</button>
           <button onClick={() => window.open("https://monad-leaderboard-theta.vercel.app/", "_blank")} style={buttonBreak}>Break Monad</button>
+          <button onClick={toggleDarkMode} style={buttonToggle}>
+            {isDarkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
+          </button>
         </div>
 
         <div style={cardStyle}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>What is the Name of the dApp?</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>dApp Identifier</h2>
           {!gameActive ? (
             <button onClick={startGame} style={buttonPrimary}>Start Game</button>
           ) : (
@@ -302,7 +344,15 @@ export default function App() {
               <img src={current.logo} alt="Logo" style={{ width: 100, height: 100, objectFit: "contain", marginBottom: 12 }} />
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {current.options.map((opt) => (
-                  <button key={opt} onClick={() => handleAnswer(opt)} disabled={!!selected} style={{ ...buttonSecondary, background: selected && opt === current.answer ? "#16a34a" : selected && opt === selected ? "#ef4444" : "#16a34a" }}>
+                  <button
+                    key={opt}
+                    onClick={() => handleAnswer(opt)}
+                    disabled={!!selected}
+                    style={{
+                      ...buttonSecondary,
+                      background: selected && opt === current.answer ? "#16a34a" : selected && opt === selected ? "#ef4444" : "#16a34a"
+                    }}
+                  >
                     {opt}
                   </button>
                 ))}
@@ -375,7 +425,7 @@ export default function App() {
                     justifyContent: "space-between",
                     alignItems: "center",
                     padding: "8px 0",
-                    borderBottom: "1px solid #eee",
+                    borderBottom: "1px solid #eee"
                   }}
                 >
                   <span>{idx + 1}. {shortenAddress(entry.wallet)}</span>
