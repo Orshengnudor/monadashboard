@@ -24,7 +24,7 @@ export default function App() {
   const [loadingNFTs, setLoadingNFTs] = useState(false);
   const [customTokenCA, setCustomTokenCA] = useState("");
   const [TOKENS, setTOKENS] = useState({
-    DAK: "0x0F0BDEbF EstablishedF83cD1EE3974779Bcb7315f9808c714",
+    // Removed invalid DAK address
     CHOG: "0xE0590015A873bF326bd645c3E1266d4db41C4E6B",
     YAKI: "0xfe140e1dCe99Be9F4F15d657CD9b7BF622270C50",
     CULT: "0xAbF39775d23c5B6C0782f3e35B51288bdaf946e2",
@@ -51,7 +51,7 @@ export default function App() {
     }
   }, []);
   useEffect(() => {
-    const defaultKeys = new Set(["DAK", "CHOG", "YAKI", "CULT", "GMONAD", "aprMON", "shMON", "sMON"]);
+    const defaultKeys = new Set(["CHOG", "YAKI", "CULT", "GMONAD", "aprMON", "shMON", "sMON"]);
     const customOnly = Object.fromEntries(
       Object.entries(TOKENS).filter(([k]) => !defaultKeys.has(k))
     );
@@ -94,19 +94,32 @@ export default function App() {
   const fetchBalances = async (address) => {
     try {
       const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL);
+      if (!ethers.isAddress(address)) {
+        throw new Error("Invalid Ethereum address");
+      }
       const rawBalance = await provider.getBalance(address);
       const monBalance = parseFloat(ethers.formatEther(rawBalance));
 
-      const tokenBalances = {};
+      const tokenBalances = { DAK: 0, CHOG: 0, YAKI: 0 }; // Initialize with defaults
       for (let [symbol, ca] of Object.entries(TOKENS)) {
-        const contract = new ethers.Contract(ca, ERC20_ABI, provider);
-        const [balance, decimals] = await Promise.all([
-          contract.balanceOf(address),
-          contract.decimals()
-        ]);
-        tokenBalances[symbol] = parseFloat(
-          parseFloat(ethers.formatUnits(balance, decimals)).toFixed(5)
-        );
+        if (!ethers.isAddress(ca)) {
+          console.warn(`Invalid contract address for ${symbol}: ${ca}`);
+          tokenBalances[symbol] = 0;
+          continue;
+        }
+        try {
+          const contract = new ethers.Contract(ca, ERC20_ABI, provider);
+          const [balance, decimals] = await Promise.all([
+            contract.balanceOf(address).catch(() => 0),
+            contract.decimals().catch(() => 18) // Default to 18 if decimals call fails
+          ]);
+          tokenBalances[symbol] = parseFloat(
+            parseFloat(ethers.formatUnits(balance, decimals)).toFixed(5)
+          );
+        } catch (err) {
+          console.warn(`Failed to fetch balance for ${symbol}: ${err.message}`);
+          tokenBalances[symbol] = 0;
+        }
       }
 
       setBalances({ MON: parseFloat(monBalance.toFixed(5)), ...tokenBalances });
@@ -120,6 +133,9 @@ export default function App() {
     setLoadingTx(true);
     try {
       const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL);
+      if (!ethers.isAddress(address)) {
+        throw new Error("Invalid Ethereum address");
+      }
       const txCount = await provider.getTransactionCount(address);
       setTotalTx(txCount);
     } catch {
@@ -131,6 +147,9 @@ export default function App() {
   const fetchAllNFTs = async (address) => {
     setLoadingNFTs(true);
     try {
+      if (!ethers.isAddress(address)) {
+        throw new Error("Invalid Ethereum address");
+      }
       let allNFTs = [];
       let pageKey = null;
       do {
@@ -188,6 +207,10 @@ export default function App() {
 
   const addToken = () => {
     if (!customTokenCA) return;
+    if (!ethers.isAddress(customTokenCA)) {
+      alert("Invalid contract address");
+      return;
+    }
     const symbol = prompt("Enter token symbol:");
     if (!symbol) return;
     setTOKENS((prev) => ({ ...prev, [symbol]: customTokenCA }));
@@ -234,7 +257,7 @@ export default function App() {
   };
   const stackStyle = { width: "100%", maxWidth: 560, display: "flex", flexDirection: "column", alignItems: "center", gap: 24 };
   const cardStyle = {
-    background: isDarkMode ? "#4B0082" : "#ffffff", // Deep purple in dark mode
+    background: isDarkMode ? "#4B0082" : "#ffffff",
     color: isDarkMode ? "#e0e0e0" : "#000000",
     borderRadius: 16,
     boxShadow: isDarkMode ? "0 10px 24px rgba(0,0,0,0.4)" : "0 10px 24px rgba(0,0,0,0.25)",
