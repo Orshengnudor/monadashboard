@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import axios from "axios";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import "./App.css";
-import gameData from "./gameData"; // ✅ import quiz data
+import gameData from "./gameData";
 
 // ERC-20 ABI minimal to get balance and decimals
 const ERC20_ABI = [
@@ -11,6 +11,9 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
   "function symbol() view returns (string)"
 ];
+
+// Backend API URL (updated to deployed server)
+const API_URL = "https://monad-leaderboard-server.vercel.app/api";
 
 export default function App() {
   const [walletAddress, setWalletAddress] = useState("Not connected");
@@ -30,8 +33,11 @@ export default function App() {
     shMON: "0x1b4Cb47622705F0F67b6B18bBD1cB1a91fc77d37",
     sMON: "0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5"
   });
+  const [leaderboard, setLeaderboard] = useState([]); // Store leaderboard data
 
-  // --- Persistent custom tokens ---
+  const ALCHEMY_API_URL = "https://monad-testnet.g.alchemy.com/v2/t8TcyfIGJYS3otYySM2t6";
+
+  // Persistent custom tokens
   useEffect(() => {
     const saved = localStorage.getItem("monad_custom_tokens");
     if (saved) {
@@ -44,23 +50,23 @@ export default function App() {
     }
   }, []);
   useEffect(() => {
-    const defaultKeys = new Set([
-      "DAK","CHOG","YAKI","CULT","GMONAD","aprMON","shMON","sMON"
-    ]);
+    const defaultKeys = new Set(["DAK", "CHOG", "YAKI", "CULT", "GMONAD", "aprMON", "shMON", "sMON"]);
     const customOnly = Object.fromEntries(
       Object.entries(TOKENS).filter(([k]) => !defaultKeys.has(k))
     );
     localStorage.setItem("monad_custom_tokens", JSON.stringify(customOnly));
   }, [TOKENS]);
 
+  // Fetch leaderboard on mount and refresh
+  useEffect(() => {
+    fetchLeaderboard();
+  }, []);
+
   const shortenAddress = (addr) =>
     addr && addr !== "Not connected"
       ? `${addr.slice(0, 6)}...${addr.slice(-4)}`
       : addr;
 
-  const ALCHEMY_API_URL = "https://monad-testnet.g.alchemy.com/v2/t8TcyfIGJYS3otYySM2t6";
-
-  // Connect wallet
   const connectWallet = async () => {
     if (window.ethereum) {
       try {
@@ -77,7 +83,6 @@ export default function App() {
     }
   };
 
-  // Disconnect wallet
   const disconnectWallet = () => {
     setWalletAddress("Not connected");
     setBalances({ MON: 0, DAK: 0, CHOG: 0, YAKI: 0 });
@@ -85,11 +90,9 @@ export default function App() {
     setNftCount(0);
   };
 
-  // Fetch balances
   const fetchBalances = async (address) => {
     try {
-      const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL);
-
+      const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL); // Reverted to old behavior
       const rawBalance = await provider.getBalance(address);
       const monBalance = parseFloat(ethers.formatEther(rawBalance));
 
@@ -144,6 +147,24 @@ export default function App() {
     setLoadingNFTs(false);
   };
 
+  // Fetch leaderboard from backend with percentage calculation
+  const fetchLeaderboard = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/leaderboard`);
+      const data = response.data;
+      const totalScore = data.reduce((sum, entry) => sum + entry.score, 0);
+      const leaderboardData = data.map(entry => ({
+        wallet: entry.wallet,
+        score: entry.score,
+        percentage: totalScore > 0 ? ((entry.score / totalScore) * 100).toFixed(2) + "%" : "0%"
+      }));
+      setLeaderboard(leaderboardData.sort((a, b) => b.score - a.score));
+    } catch (err) {
+      console.error("Failed to fetch leaderboard:", err);
+      setLeaderboard([]);
+    }
+  };
+
   const tokenData = Object.entries(balances).map(([name, value]) => ({ name, value }));
   const COLORS = ["#8b5cf6", "#f97316", "#10b981", "#ef4444", "#6366f1", "#14b8a6", "#f43f5e", "#eab308"];
 
@@ -175,7 +196,25 @@ export default function App() {
     }
   };
 
-  // ------- Styles -------
+  // Save score to backend
+  const saveScore = async () => {
+    if (walletAddress === "Not connected") {
+      return alert("Please connect your wallet to save your score!");
+    }
+    try {
+      await axios.post(`${API_URL}/leaderboard`, {
+        wallet: walletAddress,
+        score,
+        timestamp: Date.now()
+      });
+      alert("Score saved to leaderboard!");
+      fetchLeaderboard(); // Refresh leaderboard
+    } catch (err) {
+      console.error("Failed to save score:", err);
+      alert("Failed to save score to leaderboard. See console for details.");
+    }
+  };
+
   const pageStyle = { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", background: "#130629", color: "#ffffff", padding: "24px" };
   const stackStyle = { width: "100%", maxWidth: 560, display: "flex", flexDirection: "column", alignItems: "center", gap: 24 };
   const cardStyle = { background: "#ffffff", color: "#000000", borderRadius: 16, boxShadow: "0 10px 24px rgba(0,0,0,0.25)", padding: 24, width: "100%", textAlign: "center" };
@@ -186,7 +225,6 @@ export default function App() {
   const inputStyle = { border: "1px solid #ccc", borderRadius: 8, padding: "8px 10px", width: "100%", marginBottom: 8 };
   const chartCardStyle = { ...cardStyle, maxWidth: 560, display: "flex", flexDirection: "column", alignItems: "center" };
 
-  // ====== QUIZ STATE ======
   const [quizIndex, setQuizIndex] = useState(0);
   const [selected, setSelected] = useState(null);
   const [score, setScore] = useState(0);
@@ -196,11 +234,10 @@ export default function App() {
 
   const current = gameData[quizIndex];
 
-  // Timer effect
   useEffect(() => {
     if (!gameActive) return;
     if (timeLeft <= 0) {
-      handleAnswer(null); // auto next on timeout
+      handleAnswer(null);
       return;
     }
     const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -246,7 +283,6 @@ export default function App() {
     <div style={pageStyle}>
       <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 24, textAlign: "center" }}>Monad Dashboard x Game</h1>
       <div style={stackStyle}>
-        {/* Buttons ABOVE game */}
         <div style={buttonRow}>
           {walletAddress === "Not connected" ? (
             <button onClick={connectWallet} style={buttonPrimary}>Connect Wallet</button>
@@ -257,54 +293,6 @@ export default function App() {
           <button onClick={() => window.open("https://monad-leaderboard-theta.vercel.app/", "_blank")} style={buttonBreak}>Break Monad</button>
         </div>
 
-        {/* Wallet Address */}
-        <div style={cardStyle}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Wallet Address</h2>
-          <p>{shortenAddress(walletAddress)}</p>
-        </div>
-
-        {/* Balance */}
-        <div style={cardStyle}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Balance</h2>
-          <p style={{ fontSize: 24, fontWeight: 800 }}>{Number(balances.MON || 0).toFixed(5)} MON</p>
-        </div>
-
-        {/* Total Transactions */}
-        <div style={cardStyle}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Total Transactions</h2>
-          <p style={{ fontSize: 24, fontWeight: 800 }}>{loadingTx ? "Loading..." : totalTx}</p>
-        </div>
-
-        {/* NFTs Owned */}
-        <div style={cardStyle}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>NFTs Owned</h2>
-          <p style={{ fontSize: 24, fontWeight: 800 }}>{loadingNFTs ? "Loading..." : nftCount}</p>
-        </div>
-
-        {/* Add Token */}
-        <div style={cardStyle}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Add token CA</h2>
-          <input value={customTokenCA} onChange={(e) => setCustomTokenCA(e.target.value)} placeholder="0x..." style={inputStyle} />
-          <button onClick={addToken} style={buttonPrimary}>Add Token</button>
-        </div>
-
-        {/* Token Distribution Chart */}
-        <div style={chartCardStyle}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Token Distribution</h2>
-          <div style={{ width: "100%", height: 300 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={tokenData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>
-                  {tokenData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          {renderLegendBelow()}
-        </div>
-
-        {/* === QUIZ SECTION === */}
         <div style={cardStyle}>
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>What is the Name of the dApp?</h2>
           {!gameActive ? (
@@ -324,8 +312,78 @@ export default function App() {
               <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 12 }}>
                 <button onClick={startGame} style={buttonPrimary}>Restart Game</button>
                 <button onClick={quitGame} style={buttonBreak}>Quit</button>
+                <button onClick={saveScore} style={buttonSecondary}>Save Score</button>
               </div>
             </>
+          )}
+        </div>
+
+        <div style={cardStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Wallet Address</h2>
+          <p>{shortenAddress(walletAddress)}</p>
+        </div>
+
+        <div style={cardStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Balance</h2>
+          <p style={{ fontSize: 24, fontWeight: 800 }}>{Number(balances.MON || 0).toFixed(5)} MON</p>
+        </div>
+
+        <div style={cardStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Total Transactions</h2>
+          <p style={{ fontSize: 24, fontWeight: 800 }}>{loadingTx ? "Loading..." : totalTx}</p>
+        </div>
+
+        <div style={cardStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>NFTs Owned</h2>
+          <p style={{ fontSize: 24, fontWeight: 800 }}>{loadingNFTs ? "Loading..." : nftCount}</p>
+        </div>
+
+        <div style={cardStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Add token CA</h2>
+          <input value={customTokenCA} onChange={(e) => setCustomTokenCA(e.target.value)} placeholder="0x..." style={inputStyle} />
+          <button onClick={addToken} style={buttonPrimary}>Add Token</button>
+        </div>
+
+        <div style={chartCardStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Token Distribution</h2>
+          <div style={{ width: "100%", height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={tokenData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>
+                  {tokenData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          {renderLegendBelow()}
+        </div>
+
+        <div style={cardStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Leaderboard</h2>
+          {leaderboard.length === 0 ? (
+            <p>No scores yet. Play and save your score!</p>
+          ) : (
+            <div style={{ maxHeight: 200, overflowY: "auto" }}>
+              {leaderboard.map((entry, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #eee",
+                  }}
+                >
+                  <span>{idx + 1}. {shortenAddress(entry.wallet)}</span>
+                  <span>Score: {entry.score}</span>
+                  <span>{entry.percentage}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
