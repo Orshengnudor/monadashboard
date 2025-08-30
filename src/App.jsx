@@ -24,7 +24,7 @@ export default function App() {
   const [loadingNFTs, setLoadingNFTs] = useState(false);
   const [customTokenCA, setCustomTokenCA] = useState("");
   const [TOKENS, setTOKENS] = useState({
-    // Removed invalid DAK address
+    DAK: "0x0F0BDEbF0F83cD1EE3974779Bcb7315f9808c714",
     CHOG: "0xE0590015A873bF326bd645c3E1266d4db41C4E6B",
     YAKI: "0xfe140e1dCe99Be9F4F15d657CD9b7BF622270C50",
     CULT: "0xAbF39775d23c5B6C0782f3e35B51288bdaf946e2",
@@ -35,6 +35,7 @@ export default function App() {
   });
   const [leaderboard, setLeaderboard] = useState([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const ALCHEMY_API_URL = "https://monad-testnet.g.alchemy.com/v2/t8TcyfIGJYS3otYySM2t6";
 
@@ -51,14 +52,14 @@ export default function App() {
     }
   }, []);
   useEffect(() => {
-    const defaultKeys = new Set(["CHOG", "YAKI", "CULT", "GMONAD", "aprMON", "shMON", "sMON"]);
+    const defaultKeys = new Set(["DAK", "CHOG", "YAKI", "CULT", "GMONAD", "aprMON", "shMON", "sMON"]);
     const customOnly = Object.fromEntries(
       Object.entries(TOKENS).filter(([k]) => !defaultKeys.has(k))
     );
     localStorage.setItem("monad_custom_tokens", JSON.stringify(customOnly));
   }, [TOKENS]);
 
-  // Fetch leaderboard on mount and refresh
+  // Fetch leaderboard on mount
   useEffect(() => {
     fetchLeaderboard();
   }, []);
@@ -94,38 +95,35 @@ export default function App() {
   const fetchBalances = async (address) => {
     try {
       const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL);
-      if (!ethers.isAddress(address)) {
-        throw new Error("Invalid Ethereum address");
+      // Only check if address is a string to avoid unnecessary validation
+      if (typeof address !== "string" || !address.startsWith("0x")) {
+        throw new Error("Invalid wallet address format");
       }
       const rawBalance = await provider.getBalance(address);
       const monBalance = parseFloat(ethers.formatEther(rawBalance));
 
-      const tokenBalances = { DAK: 0, CHOG: 0, YAKI: 0 }; // Initialize with defaults
+      // Preserve previous balances
+      const tokenBalances = { ...balances, MON: parseFloat(monBalance.toFixed(5)) };
       for (let [symbol, ca] of Object.entries(TOKENS)) {
-        if (!ethers.isAddress(ca)) {
-          console.warn(`Invalid contract address for ${symbol}: ${ca}`);
-          tokenBalances[symbol] = 0;
-          continue;
-        }
         try {
           const contract = new ethers.Contract(ca, ERC20_ABI, provider);
           const [balance, decimals] = await Promise.all([
             contract.balanceOf(address).catch(() => 0),
-            contract.decimals().catch(() => 18) // Default to 18 if decimals call fails
+            contract.decimals().catch(() => 18)
           ]);
           tokenBalances[symbol] = parseFloat(
             parseFloat(ethers.formatUnits(balance, decimals)).toFixed(5)
           );
         } catch (err) {
           console.warn(`Failed to fetch balance for ${symbol}: ${err.message}`);
-          tokenBalances[symbol] = 0;
+          tokenBalances[symbol] = tokenBalances[symbol] || 0; // Preserve existing balance
         }
       }
 
-      setBalances({ MON: parseFloat(monBalance.toFixed(5)), ...tokenBalances });
+      setBalances(tokenBalances);
     } catch (err) {
       console.error("Balance fetch failed:", err);
-      setBalances({ MON: 0, DAK: 0, CHOG: 0, YAKI: 0 });
+      setBalances((prev) => ({ ...prev, MON: 0 })); // Only reset MON on failure
     }
   };
 
@@ -133,9 +131,6 @@ export default function App() {
     setLoadingTx(true);
     try {
       const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL);
-      if (!ethers.isAddress(address)) {
-        throw new Error("Invalid Ethereum address");
-      }
       const txCount = await provider.getTransactionCount(address);
       setTotalTx(txCount);
     } catch {
@@ -147,9 +142,6 @@ export default function App() {
   const fetchAllNFTs = async (address) => {
     setLoadingNFTs(true);
     try {
-      if (!ethers.isAddress(address)) {
-        throw new Error("Invalid Ethereum address");
-      }
       let allNFTs = [];
       let pageKey = null;
       do {
@@ -165,6 +157,18 @@ export default function App() {
       setNftCount(0);
     }
     setLoadingNFTs(false);
+  };
+
+  // Debounced refresh function
+  const handleRefresh = async () => {
+    if (isRefreshing || walletAddress === "Not connected") return;
+    setIsRefreshing(true);
+    await Promise.all([
+      fetchBalances(walletAddress),
+      fetchTotalTransactions(walletAddress),
+      fetchAllNFTs(walletAddress)
+    ]);
+    setTimeout(() => setIsRefreshing(false), 1000); // 1-second debounce
   };
 
   // Fetch leaderboard from backend
@@ -266,7 +270,7 @@ export default function App() {
     textAlign: "center"
   };
   const buttonPrimary = { background: "#7c3aed", color: "#ffffff", padding: "10px 16px", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600 };
-  const buttonSecondary = { background: "#16a34a", color: "#ffffff", padding: "10px 16px", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600 };
+  const buttonSecondary = { background: "#16a34a", color: "#ffffff", padding: "10px 16px", borderRadius: 12, border: "none", cursor: isRefreshing ? "not-allowed" : "pointer", fontWeight: 600, opacity: isRefreshing ? 0.6 : 1 };
   const buttonBreak = { background: "#ef4444", color: "#ffffff", padding: "10px 16px", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600 };
   const buttonToggle = {
     background: isDarkMode ? "#4b5563" : "#d1d5db",
@@ -351,7 +355,7 @@ export default function App() {
           ) : (
             <button onClick={disconnectWallet} style={buttonPrimary}>Disconnect Wallet</button>
           )}
-          <button onClick={() => walletAddress !== "Not connected" && (fetchBalances(walletAddress), fetchTotalTransactions(walletAddress), fetchAllNFTs(walletAddress))} style={buttonSecondary}>Refresh</button>
+          <button onClick={handleRefresh} style={buttonSecondary}>Refresh</button>
           <button onClick={() => window.open("https://monad-leaderboard-theta.vercel.app/", "_blank")} style={buttonBreak}>Break Monad</button>
           <button onClick={toggleDarkMode} style={buttonToggle}>
             {isDarkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
