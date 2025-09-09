@@ -356,7 +356,7 @@ export default function App() {
             <button onClick={disconnectWallet} style={buttonPrimary}>Disconnect Wallet</button>
           )}
           <button onClick={handleRefresh} style={buttonSecondary}>Refresh</button>
-          <button onClick={() => window.open("https://monad-leaderboard-theta.vercel.app/", "_blank")} style={buttonBreak}>Break Monad</button>
+          <button onClick={() => window.open("https://egobust143.vercel.app/", "_blank")} style={buttonBreak}>EgoBust Game</button>
           <button onClick={toggleDarkMode} style={buttonToggle}>
             {isDarkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
           </button>
